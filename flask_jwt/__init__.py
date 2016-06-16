@@ -32,6 +32,7 @@ CONFIG_DEFAULTS = {
     'JWT_AUTH_ENDPOINT': 'jwt',
     'JWT_AUTH_USERNAME_KEY': 'username',
     'JWT_AUTH_PASSWORD_KEY': 'password',
+    'JWT_EXTRA_AUTH_KEYS': [],
     'JWT_ALGORITHM': 'HS256',
     'JWT_LEEWAY': timedelta(seconds=10),
     'JWT_AUTH_HEADER_PREFIX': 'JWT',
@@ -114,12 +115,20 @@ def _default_auth_request_handler():
     data = request.get_json()
     username = data.get(current_app.config.get('JWT_AUTH_USERNAME_KEY'), None)
     password = data.get(current_app.config.get('JWT_AUTH_PASSWORD_KEY'), None)
-    criterion = [username, password, len(data) == 2]
+
+    criterion = [
+        username,
+        password,
+        len(data) == 2 + len(current_app.config.get('JWT_EXTRA_AUTH_KEYS'))
+    ]
 
     if not all(criterion):
         raise JWTError('Bad Request', 'Invalid credentials')
 
-    identity = _jwt.authentication_callback(username, password)
+    if current_app.config.get('JWT_EXTRA_AUTH_KEYS'):
+        identity = _jwt.authentication_callback(data)
+    else:
+        identity = _jwt.authentication_callback(username, password)
 
     if identity:
         access_token = _jwt.jwt_encode_callback(identity)
@@ -243,14 +252,27 @@ class JWT(object):
         return self.jwt_error_callback(error)
 
     def authentication_handler(self, callback):
-        """Specifies the identity handler function. This function receives two positional
-        arguments. The first being the username the second being the password. It should return an
-        object representing an authenticated identity. Example::
+        """Specifies the identity handler function. This function can receive
+        two positional arguments. The first being the username the second being
+        the password, or it could receive a dictionary if you want to use more
+        than just username and password to authenticate your user. To have the
+        exta keys you need to set a list with the key names into your config
+        file 'JWT_EXTRA_AUTH_KEYS' = ['role']. It should return an object
+        representing an authenticated identity. Example::
 
             @jwt.authentication_handler
             def authenticate(username, password):
                 user = User.query.filter(User.username == username).scalar()
                 if bcrypt.check_password_hash(user.password, password):
+                    return user
+
+            @jwt.authentication_handler
+            def authenticate(data_dict):
+                user = User.query.filter(
+                    User.username == data_dict['username'],
+                    User.role == data_dict['role'],
+                ).scalar()
+                if user and bcrypt.check_password_hash(user.password, data_dict['password']):
                     return user
 
         :param callback: the identity handler function
