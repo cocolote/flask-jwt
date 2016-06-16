@@ -32,7 +32,7 @@ CONFIG_DEFAULTS = {
     'JWT_AUTH_ENDPOINT': 'jwt',
     'JWT_AUTH_USERNAME_KEY': 'username',
     'JWT_AUTH_PASSWORD_KEY': 'password',
-    'JWT_EXTRA_AUTH_KEYS': [],
+    'JWT_AUTH_EXTRA_KEYS': [],
     'JWT_ALGORITHM': 'HS256',
     'JWT_LEEWAY': timedelta(seconds=10),
     'JWT_AUTH_HEADER_PREFIX': 'JWT',
@@ -119,13 +119,13 @@ def _default_auth_request_handler():
     criterion = [
         username,
         password,
-        len(data) == 2 + len(current_app.config.get('JWT_EXTRA_AUTH_KEYS'))
+        len(data) == 2 + len(current_app.config.get('JWT_AUTH_EXTRA_KEYS'))
     ]
 
     if not all(criterion):
         raise JWTError('Bad Request', 'Invalid credentials')
 
-    if current_app.config.get('JWT_EXTRA_AUTH_KEYS'):
+    if current_app.config.get('JWT_AUTH_EXTRA_KEYS'):
         identity = _jwt.authentication_callback(data)
     else:
         identity = _jwt.authentication_callback(username, password)
